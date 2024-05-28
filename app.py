@@ -31,17 +31,26 @@ def callback():
         abort(400)
     return 'OK'
 
+# 全局變數來保存用戶的區域選擇
+user_region = {}
+
 # 處理訊息
 @handler.add(MessageEvent, message=TextMessage)
 def handle_message(event):
+    user_id = event.source.user_id
     user_input = event.message.text
 
     if user_input == "美食" or user_input == "景點":
-        # 根據使用者選擇的區域和需求進行下一步處理
-        region = event.source.user_id  # 使用者的ID來保存區域選擇
-        query = f"{region}{user_input}"
-        google_maps_url = f"https://www.google.com/maps/search/台中{query}"
-        reply_message = TextSendMessage(text=f"點擊以下鏈接查看結果: {google_maps_url}")
+        # 根據用戶之前選擇的區域進行下一步處理
+        region = user_region.get(user_id)
+        if region:
+            query = f"台中市{region}{user_input}"
+            google_maps_url = f"https://www.google.com/maps/search/{query}"
+            reply_message = TextSendMessage(text=f"點擊以下鏈接查看結果: {google_maps_url}")
+            line_bot_api.reply_message(event.reply_token, reply_message)
+        else:
+            reply_message = TextSendMessage(text="請先選擇您的所在區域")
+            line_bot_api.reply_message(event.reply_token, reply_message)
     else:
         # 問使用者所在的區域
         reply_message = TemplateSendMessage(
@@ -57,8 +66,7 @@ def handle_message(event):
                 ]
             )
         )
-
-    line_bot_api.reply_message(event.reply_token, reply_message)
+        line_bot_api.reply_message(event.reply_token, reply_message)
 
 @handler.add(PostbackEvent)
 def handle_postback(event):
@@ -66,9 +74,8 @@ def handle_postback(event):
 
     if data.startswith('region='):
         region = data.split('=')[1]
-        # 保存區域選擇到使用者ID (這裡應該是儲存在某個持久化存儲中)
-        # 此處為簡化，直接使用變數保存，實際應用中需要考慮保存和檢索
-        event.source.user_id = region
+        user_id = event.source.user_id
+        user_region[user_id] = region
 
         reply_message = TemplateSendMessage(
             alt_text='請選擇類別',
